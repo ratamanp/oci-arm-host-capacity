@@ -21,29 +21,9 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
 
-      - name: Create Private Key File and .env
-        run: |
-          cat << 'EOF' > oracle_key.pem
-          ${{ secrets.OCI_PRIVATE_KEY || secrets.OCI_KEY_CONTENT || secrets.OCI_KEY_FILE }}
-          EOF
-          chmod 600 oracle_key.pem
-
-          cat << 'EOF' > .env
-          OCI_KEY_FILE=oracle_key.pem
-          OCI_REGION=${{ secrets.OCI_REGION }}
-          OCI_USER_ID=${{ secrets.OCI_USER_ID || secrets.OCI_USER_OCID }}
-          OCI_TENANCY_ID=${{ secrets.OCI_TENANCY_ID || secrets.OCI_TENANCY_OCID }}
-          OCI_KEY_FINGERPRINT=${{ secrets.OCI_KEY_FINGERPRINT || secrets.OCI_FINGERPRINT }}
-          OCI_COMPARTMENT_ID=${{ secrets.OCI_COMPARTMENT_ID || secrets.OCI_COMPARTMENT_OCID }}
-          OCI_SUBNET_ID=${{ secrets.OCI_SUBNET_ID || secrets.OCI_SUBNET_OCID }}
-          OCI_OCPUS=${{ secrets.OCI_OCPUS || '4' }}
-          OCI_MEMORY_IN_GBS=${{ secrets.OCI_MEMORY_IN_GBS || '24' }}
-          OCI_SSH_PUBLIC_KEY=${{ secrets.OCI_SSH_PUBLIC_KEY }}
-          EOF
-
-      - name: Run Instance Creation Script
+      - name: Generate clean .env and key file
         env:
-          OCI_KEY_FILE: oracle_key.pem
+          KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY || secrets.OCI_KEY_CONTENT || secrets.OCI_KEY_FILE }}
           OCI_REGION: ${{ secrets.OCI_REGION }}
           OCI_USER_ID: ${{ secrets.OCI_USER_ID || secrets.OCI_USER_OCID }}
           OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID || secrets.OCI_TENANCY_OCID }}
@@ -53,4 +33,28 @@ jobs:
           OCI_OCPUS: ${{ secrets.OCI_OCPUS || '4' }}
           OCI_MEMORY_IN_GBS: ${{ secrets.OCI_MEMORY_IN_GBS || '24' }}
           OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+        run: |
+          # 1. Guardar la llave privada en el archivo oracle_key.pem
+          python3 -c 'import os; open("oracle_key.pem", "w").write(os.environ.get("KEY_CONTENT", "").strip() + "\n")'
+          chmod 600 oracle_key.pem
+
+          # 2. Crear el archivo .env con comillas dobles en cada variable para evitar el error de espacios
+          python3 -c '
+          import os
+
+          keys = [
+              "OCI_REGION", "OCI_USER_ID", "OCI_TENANCY_ID", 
+              "OCI_KEY_FINGERPRINT", "OCI_COMPARTMENT_ID", 
+              "OCI_SUBNET_ID", "OCI_OCPUS", "OCI_MEMORY_IN_GBS", 
+              "OCI_SSH_PUBLIC_KEY"
+          ]
+
+          with open(".env", "w") as f:
+              f.write("OCI_KEY_FILE=\"oracle_key.pem\"\n")
+              for k in keys:
+                  val = os.environ.get(k, "").strip().replace("\n", "").replace("\"", "\\\"")
+                  f.write(f"{k}=\"{val}\"\n")
+          '
+
+      - name: Run Instance Creation Script
         run: php index.php
