@@ -23,38 +23,48 @@ jobs:
 
       - name: Generate clean .env and key file
         env:
-          KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY || secrets.OCI_KEY_CONTENT || secrets.OCI_KEY_FILE }}
-          OCI_REGION: ${{ secrets.OCI_REGION }}
-          OCI_USER_ID: ${{ secrets.OCI_USER_ID || secrets.OCI_USER_OCID }}
-          OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID || secrets.OCI_TENANCY_OCID }}
-          OCI_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT || secrets.OCI_FINGERPRINT }}
-          OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID || secrets.OCI_COMPARTMENT_OCID }}
-          OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID || secrets.OCI_SUBNET_OCID }}
-          OCI_OCPUS: ${{ secrets.OCI_OCPUS || '4' }}
-          OCI_MEMORY_IN_GBS: ${{ secrets.OCI_MEMORY_IN_GBS || '24' }}
-          OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+          RAW_KEY: ${{ secrets.OCI_KEY_FILE }}
+          RAW_USER: ${{ secrets.OCI_USER_OCID }}
+          RAW_TENANCY: ${{ secrets.OCI_TENANCY_OCID }}
+          RAW_COMPARTMENT: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          RAW_SUBNET: ${{ secrets.OCI_SUBNET_OCID }}
+          RAW_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          RAW_REGION: ${{ secrets.OCI_REGION }}
+          RAW_SSH_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+          RAW_OCPUS: ${{ secrets.OCI_OCPUS }}
+          RAW_MEMORY: ${{ secrets.OCI_MEMORY_IN_GBS }}
         run: |
-          # 1. Guardar la llave privada en el archivo oracle_key.pem
-          python3 -c 'import os; open("oracle_key.pem", "w").write(os.environ.get("KEY_CONTENT", "").strip() + "\n")'
-          chmod 600 oracle_key.pem
-
-          # 2. Crear el archivo .env con comillas dobles en cada variable para evitar el error de espacios
           python3 -c '
           import os
 
-          keys = [
-              "OCI_REGION", "OCI_USER_ID", "OCI_TENANCY_ID", 
-              "OCI_KEY_FINGERPRINT", "OCI_COMPARTMENT_ID", 
-              "OCI_SUBNET_ID", "OCI_OCPUS", "OCI_MEMORY_IN_GBS", 
-              "OCI_SSH_PUBLIC_KEY"
-          ]
+          # 1. Guardar la llave privada pem
+          key_data = os.environ.get("RAW_KEY", "").strip()
+          with open("oracle_key.pem", "w") as f:
+              f.write(key_data + "\n")
 
+          # 2. Mapear tus Secrets a los nombres exactos que pide el script de PHP
+          env_vars = {
+              "OCI_REGION": os.environ.get("RAW_REGION", "").strip(),
+              "OCI_USER_ID": os.environ.get("RAW_USER", "").strip(),
+              "OCI_TENANCY_ID": os.environ.get("RAW_TENANCY", "").strip(),
+              "OCI_KEY_FINGERPRINT": os.environ.get("RAW_FINGERPRINT", "").strip(),
+              "OCI_KEY_FILE": "oracle_key.pem",
+              "OCI_COMPARTMENT_ID": os.environ.get("RAW_COMPARTMENT", "").strip(),
+              "OCI_SUBNET_ID": os.environ.get("RAW_SUBNET", "").strip(),
+              "OCI_OCPUS": os.environ.get("RAW_OCPUS", "4").strip(),
+              "OCI_MEMORY_IN_GBS": os.environ.get("RAW_MEMORY", "24").strip(),
+              "OCI_SSH_PUBLIC_KEY": os.environ.get("RAW_SSH_KEY", "").strip(),
+          }
+
+          # 3. Escribir el .env limpio protegiendo comillas y saltos
           with open(".env", "w") as f:
-              f.write("OCI_KEY_FILE=\"oracle_key.pem\"\n")
-              for k in keys:
-                  val = os.environ.get(k, "").strip().replace("\n", "").replace("\"", "\\\"")
-                  f.write(f"{k}=\"{val}\"\n")
+              for k, v in env_vars.items():
+                  clean_val = v.replace("\n", "").replace("\"", "\\\"")
+                  f.write(f"{k}=\"{clean_val}\"\n")
+
+          print("Configuracion procesada con exito.")
           '
+          chmod 600 oracle_key.pem
 
       - name: Run Instance Creation Script
         run: php index.php
