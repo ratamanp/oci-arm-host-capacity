@@ -21,26 +21,26 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
 
-      - name: Create Private Key File
+      - name: Create .env and Private Key File
         run: |
-          echo "${{ secrets.OCI_KEY_FILE || secrets.OCI_PRIVATE_KEY }}" > oracle_key.pem
+          cat << 'EOF' > oracle_key.pem
+          ${{ secrets.OCI_KEY_FILE || secrets.OCI_PRIVATE_KEY || secrets.OCI_KEY_CONTENT }}
+          EOF
           chmod 600 oracle_key.pem
+
+          cat << EOF > .env
+          OCI_REGION=${{ secrets.OCI_REGION }}
+          OCI_USER_ID=${{ secrets.OCI_USER_ID || secrets.OCI_USER_OCID }}
+          OCI_TENANCY_ID=${{ secrets.OCI_TENANCY_ID || secrets.OCI_TENANCY_OCID }}
+          OCI_KEY_FINGERPRINT=${{ secrets.OCI_KEY_FINGERPRINT || secrets.OCI_FINGERPRINT }}
+          OCI_KEY_FILE=oracle_key.pem
+          OCI_COMPARTMENT_ID=${{ secrets.OCI_COMPARTMENT_ID || secrets.OCI_COMPARTMENT_OCID }}
+          OCI_SUBNET_ID=${{ secrets.OCI_SUBNET_ID || secrets.OCI_SUBNET_OCID }}
+          OCI_OCPUS=${{ secrets.OCI_OCPUS || '4' }}
+          OCI_MEMORY_IN_GBS=${{ secrets.OCI_MEMORY_IN_GBS || '24' }}
+          OCI_SSH_PUBLIC_KEY=${{ secrets.OCI_SSH_PUBLIC_KEY }}
+          EOF
 
       - name: Run Instance Creation Script
         run: php index.php
-        env:
-          OCI_USER_ID: ${{ secrets.OCI_USER_ID || secrets.OCI_USER_OCID }}
-          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID || secrets.OCI_USER_ID }}
-          OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID || secrets.OCI_TENANCY_OCID }}
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID || secrets.OCI_TENANCY_ID }}
-          OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID || secrets.OCI_COMPARTMENT_OCID }}
-          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID || secrets.OCI_COMPARTMENT_ID }}
-          OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID || secrets.OCI_SUBNET_OCID }}
-          OCI_SUBNET_OCID: ${{ secrets.OCI_SUBNET_OCID || secrets.OCI_SUBNET_ID }}
-          OCI_REGION: ${{ secrets.OCI_REGION }}
-          OCI_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT || secrets.OCI_FINGERPRINT }}
-          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT || secrets.OCI_KEY_FINGERPRINT }}
-          OCI_KEY_FILE: oracle_key.pem
-          OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
-          OCI_OCPUS: ${{ secrets.OCI_OCPUS }}
-          OCI_MEMORY_IN_GBS: ${{ secrets.OCI_MEMORY_IN_GBS }}
+        
