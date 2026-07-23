@@ -26,20 +26,16 @@ jobs:
           echo "${{ secrets.OCI_KEY_FILE }}" > oracle_key.pem
           chmod 600 oracle_key.pem
 
-      - name: Create .env File
-        run: |
-          printf 'OCI_REGION="%s"\n' "${{ secrets.OCI_REGION }}" > .env
-          printf 'OCI_USER_ID="%s"\n' "${{ secrets.OCI_USER_OCID }}" >> .env
-          printf 'OCI_TENANCY_ID="%s"\n' "${{ secrets.OCI_TENANCY_OCID }}" >> .env
-          printf 'OCI_KEY_FINGERPRINT="%s"\n' "${{ secrets.OCI_FINGERPRINT }}" >> .env
-          printf 'OCI_KEY_FILE="%s"\n' "oracle_key.pem" >> .env
-          printf 'OCI_COMPARTMENT_ID="%s"\n' "${{ secrets.OCI_COMPARTMENT_OCID }}" >> .env
-          printf 'OCI_SUBNET_ID="%s"\n' "${{ secrets.OCI_SUBNET_OCID }}" >> .env
-          printf 'OCI_OCPUS="%s"\n' "${{ secrets.OCI_OCPUS || '4' }}" >> .env
-          printf 'OCI_MEMORY_IN_GBS="%s"\n' "${{ secrets.OCI_MEMORY_IN_GBS || '24' }}" >> .env
-          printf 'OCI_SSH_PUBLIC_KEY="%s"\n' "${{ secrets.OCI_SSH_PUBLIC_KEY }}" >> .env
-
       - name: Run Instance Creation Script
         env:
+          OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_USER_ID: ${{ secrets.OCI_USER_OCID }}
+          OCI_KEY_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_KEY_FILE: oracle_key.pem
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_OCID }}
+          OCI_OCPUS: ${{ secrets.OCI_OCPUS || '4' }}
+          OCI_MEMORY_IN_GBS: ${{ secrets.OCI_MEMORY_IN_GBS || '24' }}
+          OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
         run: php index.php
