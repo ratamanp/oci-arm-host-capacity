@@ -21,43 +21,74 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
 
-      - name: Create Private Key File and .env
+      - name: Prepare Configuration Files
         env:
-          PRIVATE_KEY: ${{ secrets.OCI_KEY_FILE || secrets.OCI_PRIVATE_KEY || secrets.OCI_KEY_CONTENT }}
-          OCI_REGION: ${{ secrets.OCI_REGION }}
-          OCI_USER_ID: ${{ secrets.OCI_USER_ID || secrets.OCI_USER_OCID }}
-          OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID || secrets.OCI_TENANCY_OCID }}
-          OCI_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT || secrets.OCI_FINGERPRINT }}
-          OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID || secrets.OCI_COMPARTMENT_OCID }}
-          OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID || secrets.OCI_SUBNET_OCID }}
-          OCI_OCPUS: ${{ secrets.OCI_OCPUS }}
-          OCI_MEMORY_IN_GBS: ${{ secrets.OCI_MEMORY_IN_GBS }}
-          OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+          SECRET_KEY_FILE: ${{ secrets.OCI_KEY_FILE }}
+          SECRET_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+          SECRET_KEY_CONTENT: ${{ secrets.OCI_KEY_CONTENT }}
+          SECRET_USER_ID: ${{ secrets.OCI_USER_ID }}
+          SECRET_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          SECRET_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID }}
+          SECRET_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          SECRET_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT }}
+          SECRET_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          SECRET_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID }}
+          SECRET_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          SECRET_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID }}
+          SECRET_SUBNET_OCID: ${{ secrets.OCI_SUBNET_OCID }}
+          SECRET_REGION: ${{ secrets.OCI_REGION }}
+          SECRET_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+          SECRET_OCPUS: ${{ secrets.OCI_OCPUS }}
+          SECRET_MEMORY_IN_GBS: ${{ secrets.OCI_MEMORY_IN_GBS }}
         run: |
-          # 1. Crear el archivo de la llave privada
-          echo "$PRIVATE_KEY" > oracle_key.pem
-          chmod 600 oracle_key.pem
+          python3 -c '
+          import os
 
-          # 2. Generar el archivo .env de forma limpia usando PHP
-          php -r '
-            $env = [
-              "OCI_REGION" => getenv("OCI_REGION"),
-              "OCI_USER_ID" => getenv("OCI_USER_ID"),
-              "OCI_TENANCY_ID" => getenv("OCI_TENANCY_ID"),
-              "OCI_KEY_FINGERPRINT" => getenv("OCI_KEY_FINGERPRINT"),
-              "OCI_KEY_FILE" => "oracle_key.pem",
-              "OCI_COMPARTMENT_ID" => getenv("OCI_COMPARTMENT_ID"),
-              "OCI_SUBNET_ID" => getenv("OCI_SUBNET_ID"),
-              "OCI_OCPUS" => getenv("OCI_OCPUS") ?: "4",
-              "OCI_MEMORY_IN_GBS" => getenv("OCI_MEMORY_IN_GBS") ?: "24",
-              "OCI_SSH_PUBLIC_KEY" => getenv("OCI_SSH_PUBLIC_KEY"),
-            ];
-            $content = "";
-            foreach ($env as $k => $v) {
-              $content .= $k . "=\"" . addcslashes($v ?? "", "\"\\$") . "\"\n";
-            }
-            file_put_contents(".env", $content);
+          def get_val(*keys):
+              for k in keys:
+                  v = os.environ.get(k, "").strip()
+                  if v: return v
+              return ""
+
+          private_key = get_val("SECRET_KEY_FILE", "SECRET_PRIVATE_KEY", "SECRET_KEY_CONTENT")
+          user_id = get_val("SECRET_USER_ID", "SECRET_USER_OCID")
+          tenancy_id = get_val("SECRET_TENANCY_ID", "SECRET_TENANCY_OCID")
+          fingerprint = get_val("SECRET_KEY_FINGERPRINT", "SECRET_FINGERPRINT")
+          compartment_id = get_val("SECRET_COMPARTMENT_ID", "SECRET_COMPARTMENT_OCID")
+          subnet_id = get_val("SECRET_SUBNET_ID", "SECRET_SUBNET_OCID")
+          region = get_val("SECRET_REGION")
+          ssh_key = get_val("SECRET_SSH_PUBLIC_KEY")
+          ocpus = get_val("SECRET_OCPUS") or "4"
+          memory = get_val("SECRET_MEMORY_IN_GBS") or "24"
+
+          # Guardar llave privada en archivo pem
+          with open("oracle_key.pem", "w") as f:
+              f.write(private_key + "\n")
+
+          # Estructurar archivo .env
+          env_data = {
+              "OCI_REGION": region,
+              "OCI_USER_ID": user_id,
+              "OCI_TENANCY_ID": tenancy_id,
+              "OCI_KEY_FINGERPRINT": fingerprint,
+              "OCI_KEY_FILE": "oracle_key.pem",
+              "OCI_COMPARTMENT_ID": compartment_id,
+              "OCI_SUBNET_ID": subnet_id,
+              "OCI_OCPUS": ocpus,
+              "OCI_MEMORY_IN_GBS": memory,
+              "OCI_SSH_PUBLIC_KEY": ssh_key,
+          }
+
+          with open(".env", "w") as f:
+              for k, v in env_data.items():
+                  v_escaped = v.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ")
+                  f.write(f"{k}=\"{v_escaped}\"\n")
+
+          print("Archivos .env y oracle_key.pem creados exitosamente.")
           '
+
+      - name: Run Instance Creation Script
+        run: php index.php
 
       - name: Run Instance Creation Script
         run: php index.php
