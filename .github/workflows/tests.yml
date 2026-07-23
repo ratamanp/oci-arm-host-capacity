@@ -21,6 +21,11 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
 
+      - name: Create Private Key File
+        run: |
+          echo "${{ secrets.OCI_KEY_FILE || secrets.OCI_PRIVATE_KEY }}" > oracle_key.pem
+          chmod 600 oracle_key.pem
+
       - name: Run Instance Creation Script
         run: php index.php
         env:
@@ -35,7 +40,7 @@ jobs:
           OCI_REGION: ${{ secrets.OCI_REGION }}
           OCI_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT || secrets.OCI_FINGERPRINT }}
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT || secrets.OCI_KEY_FINGERPRINT }}
-          OCI_KEY_FILE: ${{ secrets.OCI_KEY_FILE }}
+          OCI_KEY_FILE: oracle_key.pem
           OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
           OCI_OCPUS: ${{ secrets.OCI_OCPUS }}
           OCI_MEMORY_IN_GBS: ${{ secrets.OCI_MEMORY_IN_GBS }}
