@@ -1,41 +1,60 @@
-name: Create OCI Instance
-
+name: Tests
 on:
   workflow_dispatch:
   schedule:
     - cron: '*/5 * * * *'
-
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 jobs:
-  run-script:
+  tests:
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        php-versions: ['8.3']
+    name: integration-tests (PHP ${{ matrix.php-versions }})
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup PHP
+      - uses: actions/checkout@v4
+      - name: Install PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
-
-      - name: Install dependencies
-        run: composer install --prefer-dist --no-progress
-
-      - name: Create Private Key File
+          php-version: ${{ matrix.php-versions }}
+      - name: Validate composer.json and composer.lock
+        run: composer validate
+      - name: Get Composer Cache Directory
+        id: composer-cache
         run: |
-          echo "${{ secrets.OCI_KEY_FILE }}" > oracle_key.pem
-          chmod 600 oracle_key.pem
-
-      - name: Run Instance Creation Script
+          echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-${{ matrix.php-versions }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.php-versions }}-composer-
+      - name: Install dependencies
+        run: |
+          composer update --prefer-dist --no-progress
+      - name: Write OCI private key to file
+        run: |
+          echo "${{ secrets.OCI_KEY_FILE }}" > /tmp/oci_key.pem
+          chmod 600 /tmp/oci_key.pem
+      - name: Run test suite
+        run: |
+          vendor/bin/phpunit --color tests/
         env:
-          OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_USER_ID: ${{ secrets.OCI_USER_OCID }}
-          OCI_KEY_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-          OCI_KEY_FILE: oracle_key.pem
           OCI_REGION: ${{ secrets.OCI_REGION }}
-          OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          OCI_USER_ID: ${{ secrets.OCI_USER_OCID }}
+          OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_KEY_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_FILENAME: /tmp/oci_key.pem
+          OCI_AVAILABILITY_DOMAIN: ${{ secrets.OCI_AVAILABILITY_DOMAIN }}
           OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_OCID }}
-          OCI_OCPUS: ${{ secrets.OCI_OCPUS || '4' }}
-          OCI_MEMORY_IN_GBS: ${{ secrets.OCI_MEMORY_IN_GBS || '24' }}
+          OCI_IMAGE_ID: ${{ secrets.OCI_IMAGE_ID }}
+          OCI_OCPUS: ${{ secrets.OCI_OCPUS }}
+          OCI_MEMORY_IN_GBS: ${{ secrets.OCI_MEMORY_IN_GBS }}
+          OCI_SHAPE: ${{ secrets.OCI_SHAPE }}
+          OCI_MAX_INSTANCES: ${{ secrets.OCI_MAX_INSTANCES }}
           OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
-        run: php index.php
