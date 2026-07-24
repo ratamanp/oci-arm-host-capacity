@@ -41,7 +41,7 @@ jobs:
         run: |
           echo "${{ secrets.OCI_KEY_FILE }}" > /tmp/oci_key.pem
           chmod 600 /tmp/oci_key.pem
-- name: Run test suite
+      - name: Run test suite
         run: |
           export OCI_SSH_PUBLIC_KEY=$(echo -n "$OCI_SSH_PUBLIC_KEY" | tr -d '\n\r')
           export OCI_IMAGE_ID=$(echo -n "$OCI_IMAGE_ID" | tr -d '\n\r')
