@@ -1,0 +1,40 @@
+name: OCI Diagnostico v2
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install OCI CLI
+        run: pip install --quiet oci-cli
+
+      - name: Configure OCI CLI
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_KEY_FILE }}" > ~/.oci/key.pem
+          chmod 600 ~/.oci/key.pem
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_OCID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          key_file=~/.oci/key.pem
+          tenancy=${{ secrets.OCI_TENANCY_OCID }}
+          region=${{ secrets.OCI_REGION }}
+          EOF
+          chmod 600 ~/.oci/config
+
+      - name: List subnets (correct query)
+        run: |
+          echo "=== Subnets reales en compartimento raiz ==="
+          oci network subnet list --compartment-id "${{ secrets.OCI_TENANCY_OCID }}" --all --output table --query 'data[*].{Nombre: "display-name", ID: id, VCN: "vcn-id"}'
+
+      - name: List VCNs (in case subnet ID was actually a VCN ID)
+        run: |
+          echo "=== VCNs reales en compartimento raiz ==="
+          oci network vcn list --compartment-id "${{ secrets.OCI_TENANCY_OCID }}" --all --output table --query 'data[*].{Nombre: "display-name", ID: id}'
+
+      - name: List ARM images available (correct query)
+        run: |
+          echo "=== Imagenes ARM (Ubuntu) disponibles ==="
+          oci compute image list --compartment-id "${{ secrets.OCI_TENANCY_OCID }}" --operating-system "Canonical Ubuntu" --shape "VM.Standard.A1.Flex" --all --output table --query 'data[*].{Nombre: "display-name", ID: id}'
