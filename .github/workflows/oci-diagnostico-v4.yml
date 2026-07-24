@@ -1,0 +1,49 @@
+name: OCI Diagnostico v4 - Permisos
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install OCI CLI
+        run: pip install --quiet oci-cli
+
+      - name: Configure OCI CLI
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_KEY_FILE }}" > ~/.oci/key.pem
+          chmod 600 ~/.oci/key.pem
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_OCID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          key_file=~/.oci/key.pem
+          tenancy=${{ secrets.OCI_TENANCY_OCID }}
+          region=${{ secrets.OCI_REGION }}
+          EOF
+          chmod 600 ~/.oci/config
+
+      - name: Check which groups your API user belongs to
+        run: |
+          echo "=== Grupos a los que pertenece tu usuario ==="
+          oci iam user list-groups --user-id "${{ secrets.OCI_USER_OCID }}" --query 'data[*].name' --output table
+
+      - name: List IAM policies in tenancy
+        run: |
+          echo "=== Politicas IAM en la raiz de la tenancy ==="
+          oci iam policy list --compartment-id "${{ secrets.OCI_TENANCY_OCID }}" --query 'data[*].statements' --output table
+
+      - name: Retry launch with debug for full detail
+        run: |
+          echo "=== Intento de creacion con --debug ==="
+          oci compute instance launch \
+            --compartment-id "${{ secrets.OCI_TENANCY_OCID }}" \
+            --availability-domain "${{ secrets.OCI_AVAILABILITY_DOMAIN }}" \
+            --shape "${{ secrets.OCI_SHAPE }}" \
+            --shape-config "{\"ocpus\": ${{ secrets.OCI_OCPUS }}, \"memoryInGBs\": ${{ secrets.OCI_MEMORY_IN_GBS }}}" \
+            --image-id "${{ secrets.OCI_IMAGE_ID }}" \
+            --subnet-id "${{ secrets.OCI_SUBNET_OCID }}" \
+            --assign-public-ip true \
+            --display-name "diagnostico-test" \
+            --debug 2>&1 | grep -A 5 -iE "compartment|not.?found|not.?authorized|403|404|policy" | head -80
